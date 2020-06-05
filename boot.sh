@@ -5,42 +5,42 @@
 
 set -ex
 
-case "$(/bin/sh --version)" in
-  *bash* )
-    shell=bash
-    set -o pipefail
-    ;;
-  * )
-    echo 'unknown shell'
-    exit
-    ;;
-esac
-
 case "$(uname)" in
   Darwin )
     os=osx
     ;;
+  Linux )
+    if command -v apk; then
+      os=alpine
+    elif command -v apt; then
+      os=ubuntu
+    else
+      os=linux
+    fi
+    ;;
   * )
+    uname
     echo 'unknown os'
     exit
     ;;
 esac
 
+alias priviledge='env'
+if command -v sudo; then
+  alias priviledge='sudo'
+fi
+
 case "${os}" in
-  osx )
+  alpine )
+    apk add bash curl git jq openssh
     ;;
   ubuntu )
-    case "${shell}" in
-      dash )
-        sudo dpkg-reconfigure dash
+    echo no | priviledge dpkg-reconfigure dash
 
-        echo 'bash shell set, rerun command.'
-        exit
-        ;;
-    esac
-
-    sudo apt-get install -y git xclip
+    priviledge apt-get update
+    priviledge apt-get install -y curl git jq
     ;;
+  * )
 esac
 
 bin_dir="${HOME}/bin"
@@ -55,28 +55,29 @@ if ! test -d "${bin_dir}"; then
   else
     pub_key="${rsa_key}.pub"
 
-    ssh-keygen -t rsa -b 4096 -C 'github@holomaplefeline.net'
+    EMAIL="$(curl --fail -u "asakatida:${GITHUB_TOKEN:?}" 'https://api.github.com/user/public_emails')"
+    EMAIL="$(echo "${EMAIL}" | jq 'map(select(.primary and .verified and .visibility == "public"))[0].email')"
+
+    echo "${rsa_key}" | ssh-keygen -t rsa -b 4096 -C "${EMAIL}" -N ''
     chmod 700 "${ssh_dir}/"
     chmod 400 "${rsa_key}" "${pub_key}"
 
-    case "${os}" in
-      osx )
-        pbcopy < "${pub_key}"
-        ;;
-      ubuntu )
-        xclip -sel clip < "${pub_key}"
-        ;;
-    esac
+    pub_key="$(cat "${pub_key}")"
 
-    echo 'Add key to github.com'
-    exit
+    env
+    read -r ssh_key_title
+
+    curl --fail -u "asakatida:${GITHUB_TOKEN:?}" -X POST -d "$(
+      jq -cn --arg key "${pub_key}" --arg title "${ssh_key_title}" '{ "key": $key, "title": $title }'
+    )" 'https://api.github.com/user/keys'
   fi
 
   boot_dir="${HOME}/boot"
 
   if ! test -d "${boot_dir}/.git/"; then
-    rm -rf "${boot_dir}/"
+    rm -rf "${boot_dir:?}/"
     git clone 'git@github.com:asakatida/boot.git' "${boot_dir}"
+    chmod 700 "${boot_dir}/boot.sh"
     "${boot_dir}/boot.sh"
     exit
   fi
