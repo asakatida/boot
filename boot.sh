@@ -59,10 +59,7 @@ if ! test -d "${bin_dir}"; then
   ssh_dir="${HOME}/.ssh"
   rsa_key="${ssh_dir}/id_rsa"
 
-  if test -f "${rsa_key}"; then
-    eval "$(ssh-agent -s)"
-    ssh-add "${rsa_key}"
-  else
+  if ! test -f "${rsa_key}"; then
     pub_key="${rsa_key}.pub"
 
     EMAIL="$(curl --fail -u "asakatida:${GITHUB_TOKEN:?}" 'https://api.github.com/user/public_emails')"
@@ -78,6 +75,9 @@ if ! test -d "${bin_dir}"; then
       jq -cn --arg key "${pub_key}" --arg title "${SSH_KEY_TITLE:?}-${HOSTNAME:?}" '{ "key": $key, "title": $title }'
     )" 'https://api.github.com/user/keys'
   fi
+
+  eval "$(ssh-agent -s)"
+  ssh-add "${rsa_key}"
 
   git clone 'git@github.com:asakatida/usr-bin.git' "${bin_dir}/"
 fi
