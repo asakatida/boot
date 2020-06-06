@@ -1,5 +1,5 @@
 #!/bin/sh
-# curl --output /tmp/boot.sh https://raw.githubusercontent.com/asakatida/boot/master/boot.sh
+# curl --output /tmp/boot.sh https://raw.githubusercontent.com/asakatida/boot/stable/boot.sh
 # chmod 700 /tmp/boot.sh
 # /tmp/boot.sh
 
@@ -43,6 +43,16 @@ case "${os}" in
   * )
 esac
 
+boot_dir="${HOME}/boot"
+
+if ! test -d "${boot_dir}/.git/"; then
+  rm -rf "${boot_dir:?}/"
+  git clone 'https://github.com/asakatida/boot.git' "${boot_dir}"
+  chmod 700 "${boot_dir}/boot.sh"
+  "${boot_dir}/boot.sh"
+  exit
+fi
+
 bin_dir="${HOME}/bin"
 
 if ! test -d "${bin_dir}"; then
@@ -64,22 +74,9 @@ if ! test -d "${bin_dir}"; then
 
     pub_key="$(cat "${pub_key}")"
 
-    env
-    read -r ssh_key_title
-
     curl --fail -u "asakatida:${GITHUB_TOKEN:?}" -X POST -d "$(
-      jq -cn --arg key "${pub_key}" --arg title "${ssh_key_title}" '{ "key": $key, "title": $title }'
+      jq -cn --arg key "${pub_key}" --arg title "${SSH_KEY_TITLE:?}-${HOSTNAME:?}" '{ "key": $key, "title": $title }'
     )" 'https://api.github.com/user/keys'
-  fi
-
-  boot_dir="${HOME}/boot"
-
-  if ! test -d "${boot_dir}/.git/"; then
-    rm -rf "${boot_dir:?}/"
-    git clone 'git@github.com:asakatida/boot.git' "${boot_dir}"
-    chmod 700 "${boot_dir}/boot.sh"
-    "${boot_dir}/boot.sh"
-    exit
   fi
 
   git clone 'git@github.com:asakatida/usr-bin.git' "${bin_dir}/"
