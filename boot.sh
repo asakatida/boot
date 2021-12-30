@@ -65,7 +65,11 @@ if ! test -d "${bin_dir}"; then
     EMAIL="$(curl --fail -u "asakatida:${GITHUB_TOKEN:?}" 'https://api.github.com/user/public_emails')"
     EMAIL="$(echo "${EMAIL}" | jq 'map(select(.primary and .verified and .visibility == "public"))[0].email')"
 
-    echo "${rsa_key}" | ssh-keygen -t rsa -b 4096 -C "${EMAIL}" -N ''
+    if test -n "${SSH_KEY:-}"; then
+      echo "${SSH_KEY}" > "${rsa_key}"
+    else
+      echo "${rsa_key}" | ssh-keygen -t rsa -b 4096 -C "${EMAIL}" -N ''
+    fi
     chmod 700 "${ssh_dir}/"
     chmod 400 "${rsa_key}" "${pub_key}"
 
@@ -79,7 +83,9 @@ if ! test -d "${bin_dir}"; then
   eval "$(ssh-agent -s)"
   ssh-add "${rsa_key}"
 
-  git clone 'git@github.com:asakatida/usr-bin.git' "${bin_dir}/"
+  while ! git clone 'git@github.com:asakatida/usr-bin.git' "${bin_dir}/"; do
+    sleep 10
+  done
 fi
 
 "${bin_dir}/tools/boot.sh"
