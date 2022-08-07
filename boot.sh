@@ -47,7 +47,7 @@ priviledge ssh-keygen -A
 
 boot_dir="${HOME}/boot"
 
-if [ ! -f "${boot_dir}/.git" ]; then
+if [ ! -e "${boot_dir}/.git" ]; then
   rm -rf "${boot_dir}/"
   git clone 'https://github.com/asakatida/boot.git' "${boot_dir}"
   chmod 700 "${boot_dir}/boot.sh"
@@ -57,11 +57,11 @@ fi
 
 bin_dir="${HOME}/bin"
 
-if [ ! -f "${bin_dir}/.git" ]; then
+if [ ! -e "${bin_dir}/.git" ]; then
   ssh_dir="${HOME}/.ssh"
   ssh_key="${ssh_dir}/id_ed25519"
 
-  if ! test -f "${ssh_key}"; then
+  if ! test -e "${ssh_key}"; then
     mkdir -p "${ssh_dir}"
     chmod 700 "${ssh_dir}"
 
