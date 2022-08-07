@@ -43,10 +43,12 @@ case "${os}" in
   * )
 esac
 
+priviledge ssh-keygen -A
+
 boot_dir="${HOME}/boot"
 
-if ! test -d "${boot_dir}/.git/"; then
-  rm -rf "${boot_dir:?}/"
+if [ ! -f "${boot_dir}/.git" ]; then
+  rm -rf "${boot_dir}/"
   git clone 'https://github.com/asakatida/boot.git' "${boot_dir}"
   chmod 700 "${boot_dir}/boot.sh"
   "${boot_dir}/boot.sh"
@@ -55,37 +57,47 @@ fi
 
 bin_dir="${HOME}/bin"
 
-if ! test -d "${bin_dir}"; then
+if [ ! -f "${bin_dir}/.git" ]; then
   ssh_dir="${HOME}/.ssh"
-  rsa_key="${ssh_dir}/id_rsa"
+  ssh_key="${ssh_dir}/id_ed25519"
 
-  if ! test -f "${rsa_key}"; then
-    pub_key="${rsa_key}.pub"
+  if ! test -f "${ssh_key}"; then
+    mkdir -p "${ssh_dir}"
+    chmod 700 "${ssh_dir}"
 
-    EMAIL="$(curl --fail -u "asakatida:${GITHUB_TOKEN:?}" 'https://api.github.com/user/public_emails')"
-    EMAIL="$(echo "${EMAIL}" | jq 'map(select(.primary and .verified and .visibility == "public"))[0].email')"
+    read -p 'Enter your github token: ' github_token
+    read -p 'Enter your github ssh key name: ' ssh_key_title
+
+    pub_key="${ssh_key}.pub"
+
+    if [ -n "${github_token}" ]; then
+      email="$(curl --fail -u "asakatida:${github_token:?}" 'https://api.github.com/user/public_emails')"
+      email="$(echo "${email}" | jq 'map(select(.primary and .verified and .visibility == "public"))[0].email')"
+    else
+      email='github@holomaplefeline.net'
+    fi
 
     if test -n "${SSH_KEY:-}"; then
-      echo "${SSH_KEY}" > "${rsa_key}"
+      echo "${SSH_KEY}" > "${ssh_key}"
+      ssh-keygen -f "${ssh_key}" -t ed25519 -C "${email}" -N ''
     else
-      echo "${rsa_key}" | ssh-keygen -t rsa -b 4096 -C "${EMAIL}" -N ''
+      ssh-keygen -f "${ssh_key}" -t ed25519 -C "${email}" -N ''
     fi
-    chmod 700 "${ssh_dir}/"
-    chmod 400 "${rsa_key}" "${pub_key}"
+    chmod 400 "${ssh_key}" "${pub_key}"
 
-    pub_key="$(cat "${pub_key}")"
+    if [ -n "${github_token}" ]; then
+      pub_key="$(cat "${pub_key}")"
 
-    curl --fail -u "asakatida:${GITHUB_TOKEN:?}" -X POST -d "$(
-      jq -cn --arg key "${pub_key}" --arg title "${SSH_KEY_TITLE:?}-${HOSTNAME:?}" '{ "key": $key, "title": $title }'
-    )" 'https://api.github.com/user/keys'
+      curl --fail -u "asakatida:${github_token:?}" -X POST -d "$(
+        jq -cn --arg key "${pub_key}" --arg title "${ssh_key_title:?}-${HOSTNAME:?}" '{ "key": $key, "title": $title }'
+      )" 'https://api.github.com/user/keys'
+    fi
   fi
 
   eval "$(ssh-agent -s)"
-  ssh-add "${rsa_key}"
+  ssh-add "${ssh_key}"
 
-  while ! git clone 'git@github.com:asakatida/usr-bin.git' "${bin_dir}/"; do
-    sleep 10
-  done
+  git clone 'git@github.com:asakatida/usr-bin.git' "${bin_dir}/"
 fi
 
 "${bin_dir}/tools/boot.sh"
